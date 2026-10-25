@@ -5,7 +5,7 @@ SongRegistry.hx): metadata version 2.2.4, chart version 2.0.0.
 """
 import json
 import os
-import re
+import shutil
 
 METADATA_VERSION = "2.2.4"
 CHART_VERSION = "2.0.0"
@@ -127,6 +127,12 @@ def convert_chart(psych, report=None, name="chart"):
                     events.append({"t": _clean(_num(ev[0])), "e": "FocusCamera",
                                    "v": {"char": -1, "x": _clean(x or 0.0), "y": _clean(y or 0.0)}})
                 report.add("info", name, "'Camera Follow Pos' converted to FocusCamera (char -1 = absolute position)")
+            elif ename == "Play Animation":
+                target = (str(e[2]).strip().lower() if len(e) > 2 else "") or "dad"
+                target = {"boyfriend": "bf", "girlfriend": "gf"}.get(target, target)
+                events.append({"t": _clean(_num(ev[0])), "e": "PlayAnimation",
+                               "v": {"target": target, "anim": str(e[1]), "force": True}})
+                report.add("info", name, "'Play Animation' converted to PlayAnimation; animation names must exist in the V-Slice character")
             else:
                 report.add("manual", name, f"event '{ename}' has no automatic V-Slice equivalent; dropped")
     events.sort(key=lambda e: e["t"])
@@ -182,7 +188,27 @@ def _diff_of(filename, slug):
     return None
 
 
-def convert_song_dir(src_dir, out_dir, artist="Unknown", report=None, song_name=None):
+def copy_audio(audio_dir, dest_dir, slug, info, report):
+    """Copy Psych audio (<mod>/songs/<slug>) to V-Slice names (songs/<slug>/Inst.ogg, Voices-<id>.ogg)."""
+    if not audio_dir or not os.path.isdir(audio_dir):
+        report.add("manual", slug, "no audio folder found (songs/<slug>); add Inst.ogg/Voices manually")
+        return
+    os.makedirs(dest_dir, exist_ok=True)
+    files = {fn.lower(): fn for fn in os.listdir(audio_dir)}
+    mapping = {"inst.ogg": "Inst.ogg", "voices.ogg": "Voices.ogg",
+               "voices-player.ogg": f"Voices-{info['player1']}.ogg",
+               "voices-opponent.ogg": f"Voices-{info['player2']}.ogg"}
+    for low, target in mapping.items():
+        if low in files:
+            shutil.copyfile(os.path.join(audio_dir, files[low]), os.path.join(dest_dir, target))
+    if "inst.ogg" not in files:
+        report.add("manual", slug, "Inst.ogg missing (V-Slice only loads .ogg; convert mp3/wav manually)")
+    for low, fn in files.items():
+        if low.endswith((".mp3", ".wav")):
+            report.add("manual", f"{slug}/{fn}", "unsupported audio format; convert to .ogg manually")
+
+
+def convert_song_dir(src_dir, out_dir, artist="Unknown", report=None, song_name=None, audio_dir=None, audio_out=None):
     """Convert one Psych song folder (data/<slug>/<slug>[-diff].json)."""
     report = report or Report()
     slug = os.path.basename(os.path.normpath(src_dir))
@@ -227,6 +253,8 @@ def convert_song_dir(src_dir, out_dir, artist="Unknown", report=None, song_name=
     for name, obj in ((f"{slug}-metadata.json", meta), (f"{slug}-chart.json", chart)):
         with open(os.path.join(dest, name), "w", encoding="utf-8") as f:
             json.dump(obj, f, indent=2)
+    if audio_out:
+        copy_audio(audio_dir, os.path.join(audio_out, slug), slug, info, report)
     if not info["needsVoices"]:
         report.add("info", slug, "needsVoices=false: do not provide a vocals file")
     report.add("info", slug, "artist not stored in Psych charts; set via --artist or edit metadata")
@@ -244,7 +272,9 @@ def convert_mod(mod_dir, out_dir, artist="Unknown"):
     for entry in sorted(os.listdir(data)):
         p = os.path.join(data, entry)
         if os.path.isdir(p):
-            r = convert_song_dir(p, os.path.join(out_dir, "data", "songs"), artist, report)
+            r = convert_song_dir(p, os.path.join(out_dir, "data", "songs"), artist, report,
+                                 audio_dir=os.path.join(mod_dir, "songs", entry),
+                                 audio_out=os.path.join(out_dir, "songs"))
             if r:
                 done.append(r)
     for sub in ("scripts", "custom_events", "custom_notetypes", "stages", "characters"):

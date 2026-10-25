@@ -20,9 +20,14 @@ plus `conversion_report.md` / `.json`.
 ## Not converted (listed in the report)
 - Lua/HScript files (`.lua`, `.hx`, `.hscript`): marked **manual**, never rewritten.
 - Other Psych events (dropped), custom note types (kind kept, needs script), altAnim, gfSection, arrow/splash skins.
-- Audio files, characters, stages, week/Freeplay data: not yet handled.
+- Characters, stages, week/Freeplay data: not yet handled.
 - Artist is absent in Psych; defaults to `Unknown`.
 - Unverified in the real game: no V-Slice build was run; fields were checked against the Funkin source only.
 
 ## Tests
 `python3 -m unittest discover -s tests -v`
+
+## Stage 2 additions
+- Audio: `<mod>/songs/<slug>/` is copied to `<out>/songs/<slug>/` as `Inst.ogg`, `Voices.ogg`, `Voices-player.ogg` -> `Voices-<player id>.ogg`,
+  `Voices-opponent.ogg` -> `Voices-<opponent id>.ogg` (naming checked against Funkin `Paths.hx`/`Song.hx`). mp3/wav are reported, not transcoded.
+- Event `Play Animation` -> `PlayAnimation` (`target`, `anim`, `force`).

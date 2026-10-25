@@ -15,7 +15,7 @@ CHART = {"song": {
         {"mustHitSection": True, "sectionNotes": [[0, 0, 0], [500, 5, 250, "Hurt Note"]]},
         {"mustHitSection": False, "changeBPM": True, "bpm": 60, "sectionNotes": [[2000, 1, 0], [2500, 6, 0]]},
     ],
-    "events": [[1000, [["Camera Follow Pos", "10", "20"], ["Screen Shake", "1, 0.1", ""]]]],
+    "events": [[1000, [["Camera Follow Pos", "10", "20"], ["Screen Shake", "1, 0.1", ""], ["Play Animation", "hey", "Boyfriend"]]]],
 }}
 
 
@@ -48,6 +48,10 @@ class ConverterTest(unittest.TestCase):
             for fn in ("test-song.json", "test-song-hard.json"):
                 with open(os.path.join(sd, fn), "w") as f:
                     json.dump(CHART, f)
+            ad = os.path.join(src, "songs", "test-song")
+            os.makedirs(ad)
+            for fn in ("Inst.ogg", "Voices.ogg", "Voices-player.ogg", "extra.mp3"):
+                open(os.path.join(ad, fn), "wb").write(b"x")
             open(os.path.join(sd, "script.lua"), "w").close()
             open(os.path.join(src, "scripts", "x.hx"), "w").close()
             self.assertEqual(main([src, out, "--artist", "Me"]), 0)
@@ -62,6 +66,10 @@ class ConverterTest(unittest.TestCase):
             self.assertEqual(chart["scrollSpeed"], {"normal": 2.5, "hard": 2.5})
             self.assertEqual(set(chart["notes"]), {"normal", "hard"})
             rep = open(os.path.join(out, "conversion_report.md")).read()
+            ao = os.path.join(out, "songs", "test-song")
+            self.assertEqual(sorted(os.listdir(ao)), ["Inst.ogg", "Voices-bf.ogg", "Voices.ogg"])
+            self.assertIn("extra.mp3", rep)
+            self.assertTrue(any(e["e"] == "PlayAnimation" and e["v"] == {"target": "bf", "anim": "hey", "force": True} for e in chart["events"]))
             self.assertIn("script.lua", rep)
             self.assertIn("scripts/x.hx", rep)
             self.assertIn("Screen Shake", rep)
